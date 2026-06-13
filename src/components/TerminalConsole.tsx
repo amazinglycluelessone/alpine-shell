@@ -38,8 +38,8 @@ import {
 import {
   onShellOutputReceived,
   sendShellCommand,
-} from './NativeAlpineShell';
-import { useHistoryNavigation } from './useCommandHistory';
+} from '../NativeAlpineShell';
+import { useHistoryNavigation } from '../useCommandHistory';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
