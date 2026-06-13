@@ -209,20 +209,41 @@ jobs:
           path: /tmp/gradle-output.txt
           retention-days: 7
 
-      - name: Publish log to pastebin
+      - name: Post Gradle output via API annotation
         if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Publishing build log..."
-          curl -s --max-time 15 -F 'clbin=<-' https://clbin.com < /tmp/gradle-output.txt 2>&1 | tee /tmp/paste-url.txt
+          python3 -c "
+import json, os, pathlib, urllib.request
+
+log = pathlib.Path('/tmp/gradle-output.txt').read_text()
+sha = os.environ.get('GITHUB_SHA', 'HEAD')
+repo = os.environ.get('GITHUB_REPOSITORY', '')
+run_id = os.environ.get('GITHUB_RUN_ID', '')
+
+# Create an issue with the log
+body = f'Gradle build failed on commit {sha[:7]}\n\n```\n{log}\n```'
+data = json.dumps({'title': f'Gradle Debug Log - {sha[:7]}', 'body': body}).encode()
+req = urllib.request.Request(
+    f'https://api.github.com/repos/{repo}/issues',
+    data=data,
+    headers={
+        'Authorization': f'token {os.environ[\"GH_TOKEN\"]}',
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+    },
+    method='POST'
+)
+resp = urllib.request.urlopen(req)
+result = json.loads(resp.read())
+print(f'Issue: {result[\"html_url\"]}')
+" 2>&1
 
       - name: Fail if build failed
         run: |
           EC=$(cat /tmp/exit-code.txt)
           if [ "$EC" != "0" ]; then exit $EC; fi
-
-      - name: Fail if build failed
-        if: env.EXIT_CODE != '0'
-        run: exit 1
 
       # ── Build release APK (only on tag pushes) ────────────────────────────
       - name: Build release APK
