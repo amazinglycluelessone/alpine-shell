@@ -220,34 +220,9 @@ jobs:
             echo '```'
           } >> $GITHUB_STEP_SUMMARY
 
-      - name: Upload Gradle log to repo
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api --method PUT repos/${{ github.repository }}/contents/logs/build-${{ github.sha }}.txt \
-            -f message="Gradle build log for ${{ github.sha }}" \
-            -f content="$(base64 -w0 /tmp/gradle-output.txt)" \
-            --jq '.content.html_url'
-
-      - name: Fail if build failed
-        run: |
-          EC=$(cat /tmp/exit-code.txt)
-          if [ "$EC" != "0" ]; then exit $EC; fi
-
-      # ── Build release APK (only on tag pushes) ────────────────────────────
-      - name: Build release APK
-        if: startsWith(github.ref, 'refs/tags/v')
-        working-directory: android
-        env:
-          MYAPP_RELEASE_STORE_FILE: ${{ secrets.KEYSTORE_FILE_PATH }}
-          MYAPP_RELEASE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          MYAPP_RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          MYAPP_RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
-
       # ── Collect APKs ──────────────────────────────────────────────────────
       - name: Collect APK files
+        if: always()
         run: |
           mkdir -p output-apks
           find android -name "*.apk" -not -path "*/intermediates/*" \
@@ -256,11 +231,20 @@ jobs:
 
       # ── Upload debug APK ──────────────────────────────────────────────────
       - name: Upload debug APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: AlpineShell-debug-${{ github.sha }}
           path: output-apks/*-debug.apk
           retention-days: 30
+
+      # ── Fail job if build step failed ──────────────────────────────────────
+      - name: Check build result
+        if: steps.build_debug.outcome == 'failure'
+        run: |
+          echo "::error::Gradle build failed!"
+          cat /tmp/gradle-output.txt
+          exit 1
 
       # ── Upload release APK (tag builds only) ─────────────────────────────
       - name: Upload release APK
@@ -273,7 +257,7 @@ jobs:
 
       # ── Create GitHub Release with APK attached ───────────────────────────
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: success() && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: output-apks/*.apk
