@@ -43,20 +43,22 @@ ASSETS_DIR="${ROOT_DIR}/android/app/src/main/assets"
 mkdir -p "${ASSETS_DIR}"
 
 # ── PRoot download sources ────────────────────────────────────────────────────
-# We use the official PRoot static binaries hosted on SourceForge.
-# These are statically-compiled and work on any Linux kernel (including Android).
-PROOT_VERSION="v5.3.0"
-PROOT_BASE="https://sourceforge.net/projects/proot.mirror/files/${PROOT_VERSION}"
+# We download the proot binary from the official Termux package repository.
+# Termux packages proot for Android/bionic, which is what we need.
+# The binary is extracted from the .deb archive.
+PROOT_VERSION="5.1.107.78-1"
+DEB_BASE="https://packages.termux.dev/apt/termux-main/pool/main/p/proot"
 
 declare -A ABI_MAP=(
     ["arm64-v8a"]="aarch64"
     ["x86_64"]="x86_64"
 )
 
-info "Downloading PRoot ${PROOT_VERSION} static binaries from SourceForge…"
+info "Downloading PRoot ${PROOT_VERSION} from Termux package repository…"
 for abi in "${!ABI_MAP[@]}"; do
     arch="${ABI_MAP[$abi]}"
-    url="${PROOT_BASE}/proot-${PROOT_VERSION}-${arch}-static/download"
+    deb_file="proot_${PROOT_VERSION}_${arch}.deb"
+    url="${DEB_BASE}/${deb_file}"
     dest="${ASSETS_DIR}/proot-${abi}"
 
     if [[ -f "${dest}" ]]; then
@@ -64,14 +66,30 @@ for abi in "${!ABI_MAP[@]}"; do
         continue
     fi
 
-    info "  Fetching proot-${abi} (arch: ${arch})…"
+    info "  Fetching ${deb_file}…"
+    tmpdir=$(mktemp -d)
+    pushd "${tmpdir}" >/dev/null
+
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL --retry 3 --retry-delay 2 "${url}" -o "${dest}"
+        curl -fsSL --retry 3 --retry-delay 2 "${url}" -o "${deb_file}"
     elif command -v wget >/dev/null 2>&1; then
-        wget -q --tries=3 "${url}" -O "${dest}"
+        wget -q --tries=3 "${url}" -O "${deb_file}"
     else
         error "Neither curl nor wget is available. Install one and retry."
     fi
+
+    # Extract proot binary from the .deb package
+    if command -v dpkg-deb >/dev/null 2>&1; then
+        dpkg-deb --fsys-tarfile "${deb_file}" | tar -xO ./data/data/com.termux/files/usr/bin/proot > "${dest}"
+    elif command -v ar >/dev/null 2>&1; then
+        ar x "${deb_file}"
+        tar -xJf data.tar.xz ./data/data/com.termux/files/usr/bin/proot -O > "${dest}"
+    else
+        error "Neither dpkg-deb nor ar is available. Install binutils and retry."
+    fi
+
+    popd >/dev/null
+    rm -rf "${tmpdir}"
 
     chmod +x "${dest}"
     size=$(du -h "${dest}" | cut -f1)

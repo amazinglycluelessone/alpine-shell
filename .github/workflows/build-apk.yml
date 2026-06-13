@@ -27,28 +27,34 @@ jobs:
         uses: actions/cache@v4
         with:
           path: proot-binaries
-          key: proot-binaries-v4
+          key: proot-binaries-v5
 
       - name: Download PRoot binaries
         if: steps.proot-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p proot-binaries
 
-          PROOT_VERSION="v5.3.0"
-          PROOT_BASE="https://sourceforge.net/projects/proot.mirror/files/${PROOT_VERSION}"
+          PROOT_VERSION="5.1.107.78-1"
+          DEB_BASE="https://packages.termux.dev/apt/termux-main/pool/main/p/proot"
 
           # ── ARM64 (aarch64) ──────────────────────────────────────────────
           echo "Downloading proot for arm64-v8a…"
           curl -fsSL \
-            "${PROOT_BASE}/proot-${PROOT_VERSION}-aarch64-static/download" \
-            -o proot-binaries/proot-arm64-v8a
+            "${DEB_BASE}/proot_${PROOT_VERSION}_aarch64.deb" \
+            -o proot-arm64.deb
+          dpkg-deb --fsys-tarfile proot-arm64.deb | tar -xO \
+            ./data/data/com.termux/files/usr/bin/proot \
+            > proot-binaries/proot-arm64-v8a
           chmod +x proot-binaries/proot-arm64-v8a
 
           # ── x86_64 ───────────────────────────────────────────────────────
           echo "Downloading proot for x86_64…"
           curl -fsSL \
-            "${PROOT_BASE}/proot-${PROOT_VERSION}-x86_64-static/download" \
-            -o proot-binaries/proot-x86_64
+            "${DEB_BASE}/proot_${PROOT_VERSION}_x86_64.deb" \
+            -o proot-x86_64.deb
+          dpkg-deb --fsys-tarfile proot-x86_64.deb | tar -xO \
+            ./data/data/com.termux/files/usr/bin/proot \
+            > proot-binaries/proot-x86_64
           chmod +x proot-binaries/proot-x86_64
 
           ls -lh proot-binaries/
