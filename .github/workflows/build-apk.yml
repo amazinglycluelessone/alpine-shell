@@ -209,17 +209,6 @@ jobs:
           path: /tmp/gradle-output.txt
           retention-days: 7
 
-      - name: Publish Gradle output to step summary
-        if: always()
-        run: |
-          {
-            echo "## Gradle build output"
-            echo ""
-            echo '```'
-            cat /tmp/gradle-output.txt
-            echo '```'
-          } >> $GITHUB_STEP_SUMMARY
-
       # ── Collect APKs ──────────────────────────────────────────────────────
       - name: Collect APK files
         if: always()
