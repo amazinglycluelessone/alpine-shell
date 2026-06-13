@@ -209,22 +209,47 @@ jobs:
           path: /tmp/gradle-output.txt
           retention-days: 7
 
-      - name: Publish Gradle log
+      - name: Upload log via GitHub API
         if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # Publish full log to paste.rs
-          PASTE_URL=$(cat /tmp/gradle-output.txt | curl -s -F 'text=<-' https://paste.rs/)
-          echo "::notice title=Gradle Full Log::$PASTE_URL"
-          echo "## Gradle Build Log: [View]($PASTE_URL)" >> $GITHUB_STEP_SUMMARY
-
-          # Also show error summary
           python3 -c "
-import pathlib
-log = pathlib.Path('/tmp/gradle-output.txt').read_text()
-lines = log.split(chr(10))
-# Show last 20 lines (usually the error)
-error = chr(10).join(lines[-20:])[:500]
-print(f'::notice title=Gradle Error (last 500 chars)::' + error.replace('%', '%25').replace(chr(10), '%0A').replace(chr(13), '%0D'))
+import os, json, pathlib, base64
+
+sha = os.environ.get('GITHUB_SHA', 'HEAD')[:7]
+log_path = pathlib.Path('/tmp/gradle-output.txt')
+log_content = log_path.read_text()
+
+# Encode as base64 for GitHub API
+encoded = base64.b64encode(log_content.encode()).decode()
+
+# Create the file via API
+import urllib.request
+url = f'https://api.github.com/repos/{os.environ[\"GITHUB_REPOSITORY\"]}/contents/logs/build-{sha}.txt'
+data = json.dumps({
+    'message': f'Gradle build log for {sha}',
+    'content': encoded,
+    'branch': 'build-logs'
+}).encode()
+
+req = urllib.request.Request(url, data=data, method='PUT')
+req.add_header('Authorization', f'token {os.environ[\"GH_TOKEN\"]}')
+req.add_header('Content-Type', 'application/json')
+
+try:
+    resp = urllib.request.urlopen(req)
+    result = json.loads(resp.read())
+    print(f'Log URL: {result[\"content\"][\"html_url\"]}')
+    # Create annotation with URL
+    log_url = result['content']['html_url']
+    print(f'::notice title=Gradle Build Log::$log_url')
+except urllib.error.HTTPError as e:
+    error = e.read().decode()
+    print(f'API Error: {e.code} {error}')
+    # Fallback: write to known location
+    with open('/tmp/gradle-log-url.txt', 'w') as f:
+        f.write(f'Upload failed: {e.code}')
 "
 
       - name: Fail if build failed
