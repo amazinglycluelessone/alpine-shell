@@ -214,19 +214,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          python3 -c "
-import os, json, pathlib, base64
+          python3 << 'PYEOF'
+import os, json, pathlib, base64, urllib.request
 
 sha = os.environ.get('GITHUB_SHA', 'HEAD')[:7]
+repo = os.environ.get('GITHUB_REPOSITORY', '')
 log_path = pathlib.Path('/tmp/gradle-output.txt')
 log_content = log_path.read_text()
 
-# Encode as base64 for GitHub API
 encoded = base64.b64encode(log_content.encode()).decode()
 
-# Create the file via API
-import urllib.request
-url = f'https://api.github.com/repos/{os.environ[\"GITHUB_REPOSITORY\"]}/contents/logs/build-{sha}.txt'
+url = f'https://api.github.com/repos/{repo}/contents/logs/build-{sha}.txt'
 data = json.dumps({
     'message': f'Gradle build log for {sha}',
     'content': encoded,
@@ -234,23 +232,21 @@ data = json.dumps({
 }).encode()
 
 req = urllib.request.Request(url, data=data, method='PUT')
-req.add_header('Authorization', f'token {os.environ[\"GH_TOKEN\"]}')
+req.add_header('Authorization', f'token {os.environ["GH_TOKEN"]}')
 req.add_header('Content-Type', 'application/json')
 
 try:
     resp = urllib.request.urlopen(req)
     result = json.loads(resp.read())
-    print(f'Log URL: {result[\"content\"][\"html_url\"]}')
-    # Create annotation with URL
+    print(f'Log URL: {result["content"]["html_url"]}')
     log_url = result['content']['html_url']
-    print(f'::notice title=Gradle Build Log::$log_url')
+    print(f'::notice title=Gradle Build Log::{log_url}')
 except urllib.error.HTTPError as e:
     error = e.read().decode()
     print(f'API Error: {e.code} {error}')
-    # Fallback: write to known location
     with open('/tmp/gradle-log-url.txt', 'w') as f:
         f.write(f'Upload failed: {e.code}')
-"
+PYEOF
 
       - name: Fail if build failed
         run: |
