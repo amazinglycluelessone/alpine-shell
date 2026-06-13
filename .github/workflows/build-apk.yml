@@ -209,7 +209,18 @@ jobs:
           path: /tmp/gradle-output.txt
           retention-days: 7
 
-      - name: Upload log via GitHub API
+      - name: Publish Gradle output to step summary
+        if: always()
+        run: |
+          {
+            echo "## Gradle build output"
+            echo ""
+            echo '```'
+            cat /tmp/gradle-output.txt
+            echo '```'
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Gradle log to repo
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
@@ -217,8 +228,7 @@ jobs:
           gh api --method PUT repos/${{ github.repository }}/contents/logs/build-${{ github.sha }}.txt \
             -f message="Gradle build log for ${{ github.sha }}" \
             -f content="$(base64 -w0 /tmp/gradle-output.txt)" \
-            -f branch="build-logs" \
-            --jq '.content.html_url' | tee /tmp/gradle-log-url.txt
+            --jq '.content.html_url'
 
       - name: Fail if build failed
         run: |

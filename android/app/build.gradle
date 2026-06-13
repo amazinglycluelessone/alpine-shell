@@ -3,39 +3,28 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
 react {
-    // The root of your project, i.e. where "package.json" lives
     root = file("../../")
 }
 
 def jscFlavor = 'org.webkit:android-jsc:+'
 
 android {
-    namespace "com.alpineshell.app"
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    namespace "com.alpineshell.app"
     defaultConfig {
         applicationId "com.alpineshell.app"
         minSdk rootProject.ext.minSdkVersion
         targetSdk rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0.0"
+        versionName "1.0"
         multiDexEnabled true
-
-        // ABI filters — ship only ARM64 and x86_64 (covers all modern Android devices)
         ndk {
             abiFilters "arm64-v8a", "x86_64"
         }
     }
-
     signingConfigs {
         release {
             if (project.hasProperty('MYAPP_RELEASE_STORE_FILE')) {
@@ -46,7 +35,6 @@ android {
             }
         }
     }
-
     buildTypes {
         debug {
             debuggable true
@@ -57,9 +45,7 @@ android {
             signingConfig signingConfigs.release
         }
     }
-
     packagingOptions {
-        // PRoot binaries land in jniLibs; keep them uncompressed for exec()
         jniLibs {
             keepDebugSymbols += ['**/*.so']
         }
@@ -67,10 +53,8 @@ android {
             excludes += ['META-INF/DEPENDENCIES']
         }
     }
-
     sourceSets {
         main {
-            // Ship prebuilt proot binary via jniLibs so it's extracted to nativeLibraryDir
             jniLibs.srcDirs = ['src/main/jniLibs']
         }
     }
@@ -79,20 +63,18 @@ android {
 dependencies {
     implementation("com.facebook.react:react-android")
     implementation("com.facebook.react:flipper-integration")
+
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
         implementation jscFlavor
     }
 
-    // AndroidX
     implementation "androidx.core:core-ktx:1.12.0"
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "androidx.lifecycle:lifecycle-service:2.7.0"
-    implementation "androidx.multidex:multidex:2.0.1"
-
-    // Kotlin
     implementation "org.jetbrains.kotlin:kotlin-stdlib:${rootProject.ext.kotlinVersion}"
+    implementation "androidx.multidex:multidex:2.0.1"
 }
 
 apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
