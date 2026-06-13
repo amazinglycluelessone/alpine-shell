@@ -214,39 +214,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          python3 << 'PYEOF'
-import os, json, pathlib, base64, urllib.request
-
-sha = os.environ.get('GITHUB_SHA', 'HEAD')[:7]
-repo = os.environ.get('GITHUB_REPOSITORY', '')
-log_path = pathlib.Path('/tmp/gradle-output.txt')
-log_content = log_path.read_text()
-
-encoded = base64.b64encode(log_content.encode()).decode()
-
-url = f'https://api.github.com/repos/{repo}/contents/logs/build-{sha}.txt'
-data = json.dumps({
-    'message': f'Gradle build log for {sha}',
-    'content': encoded,
-    'branch': 'build-logs'
-}).encode()
-
-req = urllib.request.Request(url, data=data, method='PUT')
-req.add_header('Authorization', f'token {os.environ["GH_TOKEN"]}')
-req.add_header('Content-Type', 'application/json')
-
-try:
-    resp = urllib.request.urlopen(req)
-    result = json.loads(resp.read())
-    print(f'Log URL: {result["content"]["html_url"]}')
-    log_url = result['content']['html_url']
-    print(f'::notice title=Gradle Build Log::{log_url}')
-except urllib.error.HTTPError as e:
-    error = e.read().decode()
-    print(f'API Error: {e.code} {error}')
-    with open('/tmp/gradle-log-url.txt', 'w') as f:
-        f.write(f'Upload failed: {e.code}')
-PYEOF
+          gh api --method PUT repos/${{ github.repository }}/contents/logs/build-${{ github.sha }}.txt \
+            -f message="Gradle build log for ${{ github.sha }}" \
+            -f content="$(base64 -w0 /tmp/gradle-output.txt)" \
+            -f branch="build-logs" \
+            --jq '.content.html_url' | tee /tmp/gradle-log-url.txt
 
       - name: Fail if build failed
         run: |
