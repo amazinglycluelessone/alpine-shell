@@ -193,17 +193,28 @@ jobs:
 
       # ── Build debug APK ───────────────────────────────────────────────────
       - name: Build debug APK
+        id: build_debug
         working-directory: android
         run: |
+          set +e
           ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/gradle-output.txt
           EXIT_CODE=${PIPESTATUS[0]}
-          if [ $EXIT_CODE -ne 0 ]; then
-            echo "## Gradle Build Failed (exit=$EXIT_CODE)" >> $GITHUB_STEP_SUMMARY
-            echo -e "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            tail -200 /tmp/gradle-output.txt >> $GITHUB_STEP_SUMMARY
-            echo -e "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            exit $EXIT_CODE
-          fi
+          # Always save output for diagnostic
+          echo "EXIT_CODE=$EXIT_CODE" >> $GITHUB_OUTPUT
+          # Save tail to job summary regardless
+          echo "## Gradle Build Report" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -300 /tmp/gradle-output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
+
+      - name: Upload Gradle build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-log
+          path: /tmp/gradle-output.txt
+          retention-days: 7
 
       # ── Build release APK (only on tag pushes) ────────────────────────────
       - name: Build release APK
