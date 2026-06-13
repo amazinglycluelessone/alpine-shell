@@ -9,6 +9,9 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 env:
   NODE_VERSION: '20'
   JAVA_VERSION: '17'
