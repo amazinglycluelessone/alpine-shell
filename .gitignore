@@ -1,0 +1,33 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# React Native
+.expo/
+.expo-shared/
+*.jks
+*.keystore
+!android/app/debug.keystore
+
+# Android build outputs
+android/app/build/
+android/build/
+android/.gradle/
+*.apk
+*.aab
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Bundle
+android/app/src/main/assets/index.android.bundle
+android/app/src/main/assets/index.android.bundle.map
+
+# Large binary assets (fetched by CI)
+android/app/src/main/assets/proot-*
+android/app/src/main/assets/alpine-minirootfs.tar.gz

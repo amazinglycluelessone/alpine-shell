@@ -1,0 +1,236 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main, master]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+  JAVA_VERSION: '17'
+  ALPINE_VERSION: '3.19.1'
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Job 1: Fetch PRoot binaries and cache them
+  # ─────────────────────────────────────────────────────────────────────────
+  fetch-proot:
+    name: Fetch PRoot Binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restore PRoot cache
+        id: proot-cache
+        uses: actions/cache@v4
+        with:
+          path: proot-binaries
+          key: proot-binaries-v3
+
+      - name: Download PRoot binaries
+        if: steps.proot-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p proot-binaries
+
+          # ── ARM64 (aarch64) ──────────────────────────────────────────────
+          echo "Downloading proot for arm64-v8a…"
+          curl -fsSL \
+            "https://github.com/termux/proot/releases/latest/download/proot-aarch64" \
+            -o proot-binaries/proot-arm64-v8a
+          chmod +x proot-binaries/proot-arm64-v8a
+
+          # ── x86_64 ───────────────────────────────────────────────────────
+          echo "Downloading proot for x86_64…"
+          curl -fsSL \
+            "https://github.com/termux/proot/releases/latest/download/proot-x86_64" \
+            -o proot-binaries/proot-x86_64
+          chmod +x proot-binaries/proot-x86_64
+
+          ls -lh proot-binaries/
+
+      - name: Upload PRoot binaries as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: proot-binaries
+          path: proot-binaries/
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Job 2: Fetch Alpine miniRootfs tarball
+  # ─────────────────────────────────────────────────────────────────────────
+  fetch-alpine:
+    name: Fetch Alpine miniRootfs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restore Alpine rootfs cache
+        id: alpine-cache
+        uses: actions/cache@v4
+        with:
+          path: alpine-rootfs
+          key: alpine-minirootfs-${{ env.ALPINE_VERSION }}-arm64
+
+      - name: Download Alpine miniRootfs (arm64)
+        if: steps.alpine-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p alpine-rootfs
+          VERSION="${{ env.ALPINE_VERSION }}"
+          BASE_URL="https://dl-cdn.alpinelinux.org/alpine/v${VERSION%.*}/releases/aarch64"
+          FILE="alpine-minirootfs-${VERSION}-aarch64.tar.gz"
+          echo "Downloading ${FILE}…"
+          curl -fsSL "${BASE_URL}/${FILE}" -o "alpine-rootfs/alpine-minirootfs.tar.gz"
+          ls -lh alpine-rootfs/
+
+      - name: Upload Alpine rootfs as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpine-rootfs
+          path: alpine-rootfs/
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Job 3: Build the APK
+  # ─────────────────────────────────────────────────────────────────────────
+  build-apk:
+    name: Build APK
+    runs-on: ubuntu-latest
+    needs: [fetch-proot, fetch-alpine]
+
+    steps:
+      # ── Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Java ──────────────────────────────────────────────────────────────
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+
+      # ── Node ──────────────────────────────────────────────────────────────
+      - name: Set up Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      # ── Android SDK ───────────────────────────────────────────────────────
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Install required SDK components
+        run: |
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;34.0.0" \
+            "ndk;25.1.8937393"
+
+      # ── Download PRoot + Alpine artifacts ────────────────────────────────
+      - name: Download PRoot binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: proot-binaries
+          path: proot-binaries/
+
+      - name: Download Alpine rootfs tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: alpine-rootfs
+          path: alpine-rootfs/
+
+      # ── Bundle assets ─────────────────────────────────────────────────────
+      - name: Copy assets into app
+        run: |
+          # PRoot binaries → assets (for extraction on first launch)
+          mkdir -p android/app/src/main/assets
+          cp proot-binaries/proot-arm64-v8a android/app/src/main/assets/proot-arm64-v8a
+          cp proot-binaries/proot-x86_64    android/app/src/main/assets/proot-x86_64
+
+          # Alpine rootfs tarball → assets
+          cp alpine-rootfs/alpine-minirootfs.tar.gz \
+             android/app/src/main/assets/alpine-minirootfs.tar.gz
+
+          # Verify
+          ls -lh android/app/src/main/assets/
+
+      # ── React Native JS bundle ────────────────────────────────────────────
+      - name: Bundle React Native JavaScript
+        run: |
+          npx react-native bundle \
+            --platform android \
+            --dev false \
+            --entry-file index.js \
+            --bundle-output android/app/src/main/assets/index.android.bundle \
+            --assets-dest android/app/src/main/res
+
+      # ── Gradle cache ─────────────────────────────────────────────────────
+      - name: Cache Gradle wrapper
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-
+
+      # ── Build debug APK ───────────────────────────────────────────────────
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      # ── Build release APK (only on tag pushes) ────────────────────────────
+      - name: Build release APK
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: android
+        env:
+          MYAPP_RELEASE_STORE_FILE: ${{ secrets.KEYSTORE_FILE_PATH }}
+          MYAPP_RELEASE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          MYAPP_RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          MYAPP_RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      # ── Collect APKs ──────────────────────────────────────────────────────
+      - name: Collect APK files
+        run: |
+          mkdir -p output-apks
+          find android -name "*.apk" -not -path "*/intermediates/*" \
+            -exec cp {} output-apks/ \;
+          ls -lh output-apks/
+
+      # ── Upload debug APK ──────────────────────────────────────────────────
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AlpineShell-debug-${{ github.sha }}
+          path: output-apks/*-debug.apk
+          retention-days: 30
+
+      # ── Upload release APK (tag builds only) ─────────────────────────────
+      - name: Upload release APK
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: AlpineShell-release-${{ github.ref_name }}
+          path: output-apks/*-release.apk
+          retention-days: 90
+
+      # ── Create GitHub Release with APK attached ───────────────────────────
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: output-apks/*.apk
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
