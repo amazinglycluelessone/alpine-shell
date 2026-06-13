@@ -5,13 +5,9 @@ apply plugin: "com.facebook.react"
 react {
     // The root of your project, i.e. where "package.json" lives
     root = file("../../")
-    // The folder where the react-native NPM package is. Default is ../node_modules/react-native
-    reactNativeDir = file("../../node_modules/react-native")
-    // The folder where the react-native Codegen package is. Default is ../node_modules/@react-native/codegen
-    codegenDir = file("../../node_modules/@react-native/codegen")
-    // The cli.js file which is the React Native CLI entrypoint. Default is ../node_modules/react-native/cli.js
-    cliFile = file("../../node_modules/react-native/cli.js")
 }
+
+def jscFlavor = 'org.webkit:android-jsc:+'
 
 android {
     namespace "com.alpineshell.app"
@@ -81,20 +77,22 @@ android {
 }
 
 dependencies {
-    // React Native
     implementation("com.facebook.react:react-android")
-    implementation("com.facebook.react:hermes-android")
+    implementation("com.facebook.react:flipper-integration")
+    if (hermesEnabled.toBoolean()) {
+        implementation("com.facebook.react:hermes-android")
+    } else {
+        implementation jscFlavor
+    }
 
-    // AndroidX core
+    // AndroidX
     implementation "androidx.core:core-ktx:1.12.0"
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "androidx.lifecycle:lifecycle-service:2.7.0"
+    implementation "androidx.multidex:multidex:2.0.1"
 
     // Kotlin
     implementation "org.jetbrains.kotlin:kotlin-stdlib:${rootProject.ext.kotlinVersion}"
-
-    // MultiDex
-    implementation "androidx.multidex:multidex:2.0.1"
 }
 
 apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
