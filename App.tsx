@@ -27,10 +27,10 @@ import {
   isIgnoringBatteryOptimizations,
   isSessionRunning,
   startAlpineSession,
-} from './NativeAlpineShell';
-import TerminalConsole from './components/TerminalConsole';
-import TerminalStatusBar from './components/TerminalStatusBar';
-import BatteryOptimizationPrompt from './components/BatteryOptimizationPrompt';
+} from './src/NativeAlpineShell';
+import TerminalConsole from './src/components/TerminalConsole';
+import TerminalStatusBar from './src/components/TerminalStatusBar';
+import BatteryOptimizationPrompt from './src/components/BatteryOptimizationPrompt';
 
 const BATTERY_PROMPT_KEY = '@alpineshell/battery_prompted';
 
