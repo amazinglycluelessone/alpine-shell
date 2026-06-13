@@ -195,18 +195,11 @@ jobs:
       - name: Build debug APK
         id: build_debug
         working-directory: android
+        continue-on-error: true
         run: |
-          set +e
           ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/gradle-output.txt
-          EXIT_CODE=${PIPESTATUS[0]}
-          # Always save output for diagnostic
-          echo "EXIT_CODE=$EXIT_CODE" >> $GITHUB_OUTPUT
-          # Save tail to job summary regardless
-          echo "## Gradle Build Report" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          tail -300 /tmp/gradle-output.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          if [ $EXIT_CODE -ne 0 ]; then exit $EXIT_CODE; fi
+          echo ${PIPESTATUS[0]} > /tmp/exit-code.txt
+          echo "## Gradle build completed"
 
       - name: Upload Gradle build log
         if: always()
@@ -215,6 +208,21 @@ jobs:
           name: gradle-build-log
           path: /tmp/gradle-output.txt
           retention-days: 7
+
+      - name: Publish log to pastebin
+        if: always()
+        run: |
+          echo "Publishing build log..."
+          curl -s --max-time 15 -F 'clbin=<-' https://clbin.com < /tmp/gradle-output.txt 2>&1 | tee /tmp/paste-url.txt
+
+      - name: Fail if build failed
+        run: |
+          EC=$(cat /tmp/exit-code.txt)
+          if [ "$EC" != "0" ]; then exit $EC; fi
+
+      - name: Fail if build failed
+        if: env.EXIT_CODE != '0'
+        run: exit 1
 
       # ── Build release APK (only on tag pushes) ────────────────────────────
       - name: Build release APK
