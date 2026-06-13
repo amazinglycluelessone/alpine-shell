@@ -27,24 +27,27 @@ jobs:
         uses: actions/cache@v4
         with:
           path: proot-binaries
-          key: proot-binaries-v3
+          key: proot-binaries-v4
 
       - name: Download PRoot binaries
         if: steps.proot-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p proot-binaries
 
+          PROOT_VERSION="v5.3.0"
+          PROOT_BASE="https://sourceforge.net/projects/proot.mirror/files/${PROOT_VERSION}"
+
           # ── ARM64 (aarch64) ──────────────────────────────────────────────
           echo "Downloading proot for arm64-v8a…"
           curl -fsSL \
-            "https://github.com/termux/proot/releases/latest/download/proot-aarch64" \
+            "${PROOT_BASE}/proot-${PROOT_VERSION}-aarch64-static/download" \
             -o proot-binaries/proot-arm64-v8a
           chmod +x proot-binaries/proot-arm64-v8a
 
           # ── x86_64 ───────────────────────────────────────────────────────
           echo "Downloading proot for x86_64…"
           curl -fsSL \
-            "https://github.com/termux/proot/releases/latest/download/proot-x86_64" \
+            "${PROOT_BASE}/proot-${PROOT_VERSION}-x86_64-static/download" \
             -o proot-binaries/proot-x86_64
           chmod +x proot-binaries/proot-x86_64
 

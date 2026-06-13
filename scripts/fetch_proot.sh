@@ -2,7 +2,7 @@
 # =============================================================================
 # fetch_proot.sh
 #
-# Downloads pre-compiled PRoot binaries from the Termux project and copies
+# Downloads pre-compiled PRoot static binaries from SourceForge and copies
 # them into android/app/src/main/assets/ so they are bundled into the APK
 # and can be extracted on first launch.
 #
@@ -43,19 +43,20 @@ ASSETS_DIR="${ROOT_DIR}/android/app/src/main/assets"
 mkdir -p "${ASSETS_DIR}"
 
 # ── PRoot download sources ────────────────────────────────────────────────────
-# We use Termux's statically-compiled proot releases which target Android's
-# Linux kernel ABI and don't require libc.
-PROOT_BASE="https://github.com/termux/proot/releases/latest/download"
+# We use the official PRoot static binaries hosted on SourceForge.
+# These are statically-compiled and work on any Linux kernel (including Android).
+PROOT_VERSION="v5.3.0"
+PROOT_BASE="https://sourceforge.net/projects/proot.mirror/files/${PROOT_VERSION}"
 
 declare -A ABI_MAP=(
     ["arm64-v8a"]="aarch64"
     ["x86_64"]="x86_64"
 )
 
-info "Downloading PRoot binaries from Termux releases…"
+info "Downloading PRoot ${PROOT_VERSION} static binaries from SourceForge…"
 for abi in "${!ABI_MAP[@]}"; do
     arch="${ABI_MAP[$abi]}"
-    url="${PROOT_BASE}/proot-${arch}"
+    url="${PROOT_BASE}/proot-${PROOT_VERSION}-${arch}-static/download"
     dest="${ASSETS_DIR}/proot-${abi}"
 
     if [[ -f "${dest}" ]]; then
